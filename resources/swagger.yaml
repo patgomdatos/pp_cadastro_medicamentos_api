@@ -1,0 +1,371 @@
+openapi: 3.0.0
+info:
+  title: API de Controle Diário de Medicamentos
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+paths:
+  /auth/register:
+    post:
+      summary: Registrar novo usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+            example:
+              email: usuario@exemplo.com
+              password: senha123
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+              example:
+                id: 1
+                email: usuario@exemplo.com
+        '400':
+          description: Requisição inválida
+  /auth/login:
+    post:
+      summary: Autenticar usuário (login)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+            example:
+              email: usuario@exemplo.com
+              password: senha123
+      responses:
+        '200':
+          description: Autenticado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+              example:
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.exemplo
+        '401':
+          description: Não autorizado
+  /medications:
+    post:
+      summary: Criar medicamento
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicationInput'
+            # Exemplo em PT-BR para o corpo de requisição
+            example:
+              name: Paracetamol
+              dosage: "500"
+              unit: "mg"
+              times: ["08:00", "20:00"]
+              startDate: "2026-08-01"
+              daysOfWeek: [1,2,3,4,5]
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+              example:
+                id: 10
+                userId: 1
+                name: Paracetamol
+                dosage: "500"
+                unit: "mg"
+                times: ["08:00","20:00"]
+                startDate: "2026-08-01"
+                daysOfWeek: [1,2,3,4,5]
+        '400':
+          description: Requisição inválida
+        '401':
+          description: Não autorizado
+    get:
+      summary: Listar medicamentos do usuário
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Medication'
+              example:
+                - id: 10
+                  userId: 1
+                  name: Paracetamol
+                  dosage: "500"
+                  unit: mg
+                  times: ["08:00","20:00"]
+                  startDate: 2026-08-01
+                  daysOfWeek: [1,2,3,4,5]
+        '401':
+          description: Não autorizado
+  /medications/{id}:
+    get:
+      summary: Obter medicamento
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+              example:
+                id: 10
+                userId: 1
+                name: Paracetamol
+                dosage: "500"
+                unit: "mg"
+                times: ["08:00","20:00"]
+                startDate: "2026-08-01"
+                daysOfWeek: [1,2,3,4,5]
+        '404':
+          description: Não encontrado
+    put:
+      summary: Atualizar medicamento
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicationInput'
+      responses:
+        '200':
+          description: Atualizado
+        '400':
+          description: Requisição inválida
+    delete:
+      summary: Excluir medicamento
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Removido
+        '400':
+          description: Requisição inválida
+  /medications/{id}/doses:
+    post:
+      summary: Registrar uma dose como tomada ou desmarcar
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scheduled:
+                  type: string
+                  description: Data/hora ISO da dose agendada
+                action:
+                  type: string
+                  enum: [take, unmark]
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dose'
+              example:
+                id: 100
+                medId: 10
+                userId: 1
+                scheduled: "2026-08-12T08:00:00"
+                status: taken
+                takenAt: "2026-08-12T08:05:00Z"
+        '400':
+          description: Requisição inválida
+        '401':
+          description: Não autorizado
+  /doses:
+    get:
+      summary: Obter doses previstas para um dia
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            description: YYYY-MM-DD
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoseWithMed'
+              example:
+                - id: 100
+                  medId: 10
+                  userId: 1
+                  scheduled: "2026-08-12T08:00:00"
+                  status: pending
+                  takenAt: null
+                  medication:
+                    id: 10
+                    name: Paracetamol
+                    dosage: "500"
+                    unit: "mg"
+                    time: "08:00"
+        '400':
+          description: Requisição inválida
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+    MedicationInput:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nome do medicamento
+        dosage:
+          type: string
+          description: Dosagem (ex.: 500)
+        unit:
+          type: string
+          description: Unidade de medida (ex.: mg, ml)
+        times:
+          type: array
+          items:
+            type: string
+            description: 'HH:mm'
+        startDate:
+          type: string
+          description: 'Data de início do tratamento (YYYY-MM-DD)'
+        daysOfWeek:
+          type: array
+          items:
+            type: integer
+            description: '0=Domingo .. 6=Sábado'
+      example:
+        name: Paracetamol
+        dosage: "500"
+        unit: "mg"
+        times:
+          - "08:00"
+          - "20:00"
+        startDate: "2026-08-01"
+        daysOfWeek:
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+    Medication:
+      allOf:
+        - $ref: '#/components/schemas/MedicationInput'
+        - type: object
+          properties:
+            id:
+              type: integer
+            userId:
+              type: integer
+    Dose:
+      type: object
+      properties:
+        id:
+          type: integer
+        medId:
+          type: integer
+        userId:
+          type: integer
+        scheduled:
+          type: string
+        status:
+          type: string
+          enum: [pending, taken]
+          description: Estado da dose ("pending" = pendente, "taken" = tomada)
+        takenAt:
+          type: string
+          nullable: true
+          description: Data/hora em que a dose foi registrada como tomada (ISO)
+    DoseWithMed:
+      allOf:
+        - $ref: '#/components/schemas/Dose'
+        - type: object
+          properties:
+            medication:
+              type: object
+              properties:
+                id:
+                  type: integer
+                name:
+                  type: string
+                dosage:
+                  type: string
+                unit:
+                  type: string
+                time:
+                  type: string
