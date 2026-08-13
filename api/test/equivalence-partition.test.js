@@ -506,5 +506,97 @@ describe('API - Partição de Equivalência por verbos', () => {
 
       expect(res.status).to.equal(400);
     });
+
+    it('EP-28 deve impedir que um usuário consulte medicamento de outro usuário', async () => {
+      const owner = await registerUser('dono@test.com', 'SenhaForte123');
+      const otherUser = await registerUser('outro@test.com', 'SenhaForte123');
+
+      const created = await request(app)
+        .post('/medications')
+        .set('Authorization', `Bearer ${owner.body.token}`)
+        .send({
+          name: 'Medicamento privado',
+          dosage: '10',
+          unit: 'mg',
+          times: ['08:00'],
+          startDate: '2026-08-13'
+        });
+
+      const res = await request(app)
+        .get(`/medications/${created.body.id}`)
+        .set('Authorization', `Bearer ${otherUser.body.token}`);
+
+      expect(res.status).to.equal(404);
+    });
+
+    it('EP-29 deve retornar doses pendentes e permitir desmarcar uma dose tomada', async () => {
+      const registerRes = await registerUser('desmarcar@test.com', 'SenhaForte123');
+      const token = registerRes.body.token;
+
+      const created = await request(app)
+        .post('/medications')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'Levotiroxina',
+          dosage: '50',
+          unit: 'mcg',
+          times: ['07:00'],
+          startDate: '2026-08-13'
+        });
+
+      const taken = await request(app)
+        .post(`/medications/${created.body.id}/doses`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ scheduled: '2026-08-13T07:00:00', action: 'take' });
+
+      expect(taken.status).to.equal(200);
+      expect(taken.body.status).to.equal('taken');
+
+      const res = await request(app)
+        .post(`/medications/${created.body.id}/doses`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ scheduled: '2026-08-13T07:00:00', action: 'unmark' });
+
+      expect(res.status).to.equal(200);
+      expect(res.body.status).to.equal('pending');
+      expect(res.body.takenAt).to.equal(null);
+    });
+
+    it('EP-30 deve rejeitar registro de dose sem horário agendado', async () => {
+      const registerRes = await registerUser('doseSemHorario@test.com', 'SenhaForte123');
+      const token = registerRes.body.token;
+
+      const created = await request(app)
+        .post('/medications')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'AAS',
+          dosage: '100',
+          unit: 'mg',
+          times: ['09:00'],
+          startDate: '2026-08-13'
+        });
+
+      const res = await request(app)
+        .post(`/medications/${created.body.id}/doses`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ action: 'take' });
+
+      expect(res.status).to.equal(400);
+      expect(res.body.message).to.match(/scheduled|required/i);
+    });
+
+    it('EP-31 deve retornar lista vazia de doses quando não há medicamentos para o dia', async () => {
+      const registerRes = await registerUser('semDoses@test.com', 'SenhaForte123');
+      const token = registerRes.body.token;
+
+      const res = await request(app)
+        .get('/doses')
+        .query({ date: '2026-08-13' })
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body).to.deep.equal([]);
+    });
   });
 });
